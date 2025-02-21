@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gestor de Señales en Vivo</title>
+    <style>
+        /* Estilos Generales */
+        body {
+            font-family: Arial, sans-serif;
+            text-align: center;
+            margin: 20px;
+            background-color: #EAF7E5;
+            color: #2C5E2E;
+        }
+
+        h1, h2 {
+            color: #2C5E2E;
+        }
+
+        /* Lista de archivos */
+        #fileList {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 10px;
+            margin-top: 10px;
+        }
+
+        .file-button {
+            background-color: #D32F2F;
+            color: white;
+            padding: 10px 15px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: all 0.3s;
+            font-size: 14px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .file-button.active {
+            background-color: #4CAF50;
+        }
+
+        /* Contenedor de Señales */
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 15px;
+            margin-top: 20px;
+        }
+
+        .player-slot {
+            width: 100%;
+            height: 300px;
+            background: #4CAF50;
+            border: 2px solid #2C5E2E;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            color: white;
+            position: relative;
+            border-radius: 10px;
+            overflow: hidden;
+        }
+
+        iframe {
+            width: 100%;
+            height: 100%;
+            border: none;
+        }
+
+        /* Botón de cerrar */
+        .close-btn {
+            position: absolute;
+            top: 5px;
+            right: 5px;
+            background: #D32F2F;
+            color: white;
+            border: none;
+            padding: 5px;
+            border-radius: 50%;
+            cursor: pointer;
+            font-size: 14px;
+        }
+
+        .close-btn:hover {
+            background: #B71C1C;
+        }
+
+        /* Opción de carga de archivos al final */
+        .file-container {
+            margin: 20px auto;
+            padding: 20px;
+            border: 2px dashed #2C5E2E;
+            background-color: #C4E3C1;
+            display: inline-block;
+            cursor: pointer;
+            border-radius: 10px;
+            font-weight: bold;
+            transition: all 0.3s;
+        }
+
+        .file-container:hover {
+            background-color: #B2D8B0;
+        }
+    </style>
+</head>
+<body>
+
+    <h1>Gestor de Señales en Vivo</h1>
+
+    <!-- Contenedor de Reproductores -->
+    <h2>Reproductores</h2>
+    <div class="grid">
+        <div class="player-slot" id="slot1">Slot 1</div>
+        <div class="player-slot" id="slot2">Slot 2</div>
+        <div class="player-slot" id="slot3">Slot 3</div>
+        <div class="player-slot" id="slot4">Slot 4</div>
+    </div>
+
+    <!-- Lista de Archivos -->
+    <h2>Señales disponibles</h2>
+    <div id="fileList"></div>
+
+    <!-- Subir Archivos (Ahora está al final) -->
+    <h2>Agregar Nueva Señal</h2>
+    <div class="file-container" onclick="document.getElementById('fileInput').click();">
+        📂 Haz clic aquí o arrastra archivos
+    </div>
+    <input type="file" id="fileInput" accept=".html" style="display: none;">
+
+    <script>
+        let activeFiles = {}; // Guarda en qué slot está cada señal
+
+        document.addEventListener("DOMContentLoaded", () => {
+            loadFiles();
+        });
+
+        document.getElementById("fileInput").addEventListener("change", (event) => {
+            const file = event.target.files[0];
+            if (file && file.name.endsWith(".html")) {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    saveFile(file.name, e.target.result);
+                };
+                reader.readAsText(file);
+            }
+        });
+
+        function saveFile(fileName, fileContent) {
+            let files = JSON.parse(localStorage.getItem("htmlFiles")) || [];
+            
+            if (!files.some(file => file.name === fileName)) {
+                files.push({ name: fileName, content: fileContent });
+                localStorage.setItem("htmlFiles", JSON.stringify(files));
+                loadFiles();
+            } else {
+                alert("El archivo ya existe en la lista.");
+            }
+        }
+
+        function loadFiles() {
+            const fileList = document.getElementById("fileList");
+            fileList.innerHTML = "";
+            let files = JSON.parse(localStorage.getItem("htmlFiles")) || [];
+
+            files.forEach(file => {
+                const button = document.createElement("button");
+                button.innerText = file.name;
+                button.classList.add("file-button");
+                button.addEventListener("click", () => selectSlot(file.name, file.content));
+                button.addEventListener("dblclick", () => openFullscreen(file.content));
+                button.id = `btn-${file.name}`;
+                fileList.appendChild(button);
+                updateButtonStatus(file.name);
+            });
+        }
+
+        function selectSlot(fileName, content) {
+            let slot = prompt("Ingresa el número de slot (1-4) para mostrar la señal:");
+            if (slot < 1 || slot > 4) {
+                alert("Número de slot inválido.");
+                return;
+            }
+
+            let slotElement = document.getElementById(`slot${slot}`);
+            slotElement.innerHTML = `<button class="close-btn" onclick="clearSlot(${slot}, '${fileName}')">X</button>
+                                     <iframe srcdoc='${content}'></iframe>`;
+
+            activeFiles[fileName] = slot;
+            updateButtonStatus(fileName);
+        }
+
+        function clearSlot(slot, fileName) {
+            let slotElement = document.getElementById(`slot${slot}`);
+            slotElement.innerHTML = `Slot ${slot}`;
+            delete activeFiles[fileName];
+            updateButtonStatus(fileName);
+        }
+
+        function openFullscreen(content) {
+            let fullscreenWindow = window.open("", "_blank");
+            fullscreenWindow.document.write(`<html><head><title>Señal en Vivo</title></head>
+                                             <body style="margin:0; background:black;">
+                                             <iframe srcdoc='${content}' style="width:100vw; height:100vh; border:none;"></iframe>
+                                             </body></html>`);
+            fullscreenWindow.document.close();
+        }
+
+        function updateButtonStatus(fileName) {
+            let button = document.getElementById(`btn-${fileName}`);
+            if (button) {
+                button.classList.toggle("active", !!activeFiles[fileName]);
+                button.innerHTML = activeFiles[fileName] ? `🟢 ${fileName} (Slot ${activeFiles[fileName]})` : `🔴 ${fileName}`;
+            }
+        }
+    </script>
+
+</body>
+</html>
